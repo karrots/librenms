@@ -1596,7 +1596,7 @@ function unmute_alert(Illuminate\Http\Request $request)
     }
 }
 
-function get_inventory(Illuminate\Http\Request $request)
+/*function get_inventory(Illuminate\Http\Request $request)
 {
     $hostname = $request->route('hostname');
     // use hostname as device_id if it's all digits
@@ -1623,6 +1623,50 @@ function get_inventory(Illuminate\Http\Request $request)
         $sql .= ' AND `device_id`=?';
         $params[] = $device_id;
         $inventory = dbFetchRows("SELECT * FROM `entPhysical` WHERE 1 $sql", $params);
+
+        return api_success($inventory, 'inventory');
+    });
+}*/
+
+function get_inventory(Illuminate\Http\Request $request)
+{
+    $hostname = $request->route('hostname');
+    // use hostname as device_id if it's all digits
+    $device_id = ctype_digit($hostname) ?
+    $hostname : getidbyname($hostname);
+
+    return check_device_permission($device_id, function ($device_id) {
+        $params = [];
+        $sql = 'SELECT * FROM `entPhysical` WHERE device_id = ?';
+        $params[] = $device_id;
+        $inventory = dbFetchRows($sql, $params);
+
+        // Check if the query returned any rows.
+        if (empty($inventory)) {
+            // If no physical inventory is found, use the devices table as a fallback.
+            $sql = '
+                SELECT
+                    `devices`.`sysDescr` AS `entPhysicalDescr`,
+                    `devices`.`sysName` AS `entPhysicalName`,
+                    `devices`.`version` AS `entPhysicalFirmwareRev`,
+                    `devices`.`serial` AS `entPhysicalSerialNum`,
+                    "" AS `entPhysicalClass`,
+                    "" AS `entPhysicalContainedIn`,
+                    "" AS `entPhysicalIsFRU`,
+                    "" AS `entPhysicalVendorType`,
+                    "" AS `entPhysicalModelName`,
+                    "" AS `entPhysicalHardwareRev`,
+                    "" AS `entPhysicalSoftwareRev`,
+                    "" AS `entPhysicalAssetID`,
+                    "" AS `entPhysicalAlias`,
+                    "" AS `entPhysicalMfgName`,
+                    "" AS `entPhysicalUris`,
+                    "" AS `entPhysicalParentRelPos`
+                FROM `devices`
+                WHERE `device_id` = ?;
+            ';
+            $inventory = dbFetchRows($sql, [$device_id]);
+        }
 
         return api_success($inventory, 'inventory');
     });
