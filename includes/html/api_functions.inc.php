@@ -16,6 +16,7 @@ use App\Actions\Device\ValidateDeviceAndCreate;
 use App\Facades\LibrenmsConfig;
 use App\Models\Availability;
 use App\Models\Device;
+use App\Models\EntPhysical;
 use App\Models\DeviceGroup;
 use App\Models\DeviceOutage;
 use App\Models\Eventlog;
@@ -1636,53 +1637,45 @@ function get_inventory(Illuminate\Http\Request $request)
     $hostname : getidbyname($hostname);
 
     return check_device_permission($device_id, function ($device_id) use ($request) {
-        $params = [];
-        $conditions = ['1'];
-
-        if ($request->get('entPhysicalClass')) {
-            $conditions[] = 'entPhysicalClass = ?';
-            $params[] = $request->get('entPhysicalClass');
-        }
-
-        $entPhysicalContainedIn = $request->has('entPhysicalContainedIn')
-            ? $request->get('entPhysicalContainedIn')
-            : '0';
-        $conditions[] = 'entPhysicalContainedIn = ?';
-        $params[] = $entPhysicalContainedIn;
-
         if (! is_numeric($device_id)) {
             return api_error(400, 'Invalid device provided');
         }
 
-        $conditions[] = '`device_id` = ?';
-        $params[] = $device_id;
+        $inventoryQuery = EntPhysical::query()->where('device_id', $device_id);
 
-        $sql = 'SELECT * FROM `entPhysical` WHERE ' . implode(' AND ', $conditions);
-        $inventory = dbFetchRows($sql, $params);
+        if ($request->filled('entPhysicalClass')) {
+            $inventoryQuery->where('entPhysicalClass', $request->get('entPhysicalClass'));
+        }
+
+        $inventoryQuery->where('entPhysicalContainedIn', $request->input('entPhysicalContainedIn', '0'));
+
+        $inventory = $inventoryQuery->get()->toArray();
 
         if (empty($inventory)) {
-            $sql = '
-                SELECT
-                    `devices`.`sysDescr` AS `entPhysicalDescr`,
-                    `devices`.`sysName` AS `entPhysicalName`,
-                    `devices`.`version` AS `entPhysicalFirmwareRev`,
-                    `devices`.`serial` AS `entPhysicalSerialNum`,
-                    "" AS `entPhysicalClass`,
-                    "" AS `entPhysicalContainedIn`,
-                    "" AS `entPhysicalIsFRU`,
-                    "" AS `entPhysicalVendorType`,
-                    "" AS `entPhysicalModelName`,
-                    "" AS `entPhysicalHardwareRev`,
-                    "" AS `entPhysicalSoftwareRev`,
-                    "" AS `entPhysicalAssetID`,
-                    "" AS `entPhysicalAlias`,
-                    "" AS `entPhysicalMfgName`,
-                    "" AS `entPhysicalUris`,
-                    "" AS `entPhysicalParentRelPos`
-                FROM `devices`
-                WHERE `device_id` = ?;
-            ';
-            $inventory = dbFetchRows($sql, [$device_id]);
+            $device = Device::query()
+                ->select(['sysDescr', 'sysName', 'version', 'serial'])
+                ->find($device_id);
+
+            if ($device) {
+                $inventory = [[
+                    'entPhysicalDescr' => $device->sysDescr ?? '',
+                    'entPhysicalName' => $device->sysName ?? '',
+                    'entPhysicalFirmwareRev' => $device->version ?? '',
+                    'entPhysicalSerialNum' => $device->serial ?? '',
+                    'entPhysicalClass' => '',
+                    'entPhysicalContainedIn' => '',
+                    'entPhysicalIsFRU' => '',
+                    'entPhysicalVendorType' => '',
+                    'entPhysicalModelName' => '',
+                    'entPhysicalHardwareRev' => '',
+                    'entPhysicalSoftwareRev' => '',
+                    'entPhysicalAssetID' => '',
+                    'entPhysicalAlias' => '',
+                    'entPhysicalMfgName' => '',
+                    'entPhysicalUris' => '',
+                    'entPhysicalParentRelPos' => '',
+                ]];
+            }
         }
 
         return api_success($inventory, 'inventory');
