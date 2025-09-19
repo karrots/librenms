@@ -30,6 +30,7 @@ use App\Models\ApiToken;
 use App\Models\Device;
 use App\Models\User;
 use Illuminate\Foundation\Testing\DatabaseTransactions;
+use Illuminate\Support\Facades\DB;
 
 final class BasicApiTest extends DBTestCase
 {
@@ -49,5 +50,65 @@ final class BasicApiTest extends DBTestCase
                 'devices' => [$device->toArray()],
                 'count' => 1,
             ]);
+    }
+
+    public function testInventoryFilteringAndFallback(): void
+    {
+        /** @var User $user */
+        $user = User::factory()->admin()->create();
+        $token = ApiToken::generateToken($user);
+
+        $device = Device::factory()->create([
+            'sysName' => 'inventory-device',
+        ]);
+
+        DB::table('entPhysical')->insert([
+            [
+                'device_id' => $device->device_id,
+                'entPhysicalIndex' => 1,
+                'entPhysicalDescr' => 'Root inventory component',
+                'entPhysicalContainedIn' => '0',
+                'entPhysicalClass' => 'chassis',
+                'entPhysicalName' => 'Root chassis',
+                'entPhysicalSerialNum' => 'ROOT-123',
+            ],
+            [
+                'device_id' => $device->device_id,
+                'entPhysicalIndex' => 2,
+                'entPhysicalDescr' => 'Child inventory component',
+                'entPhysicalContainedIn' => '1',
+                'entPhysicalClass' => 'module',
+                'entPhysicalName' => 'Child module',
+                'entPhysicalSerialNum' => 'CHILD-456',
+            ],
+        ]);
+
+        $headers = ['X-Auth-Token' => $token->token_hash];
+
+        $this->json('GET', "/api/v0/inventory/{$device->device_id}", [], $headers)
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'inventory')
+            ->assertJsonPath('inventory.0.entPhysicalName', 'Root chassis')
+            ->assertJsonPath('inventory.0.entPhysicalContainedIn', '0');
+
+        $this->json('GET', "/api/v0/inventory/{$device->device_id}", ['entPhysicalContainedIn' => '1'], $headers)
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'inventory')
+            ->assertJsonPath('inventory.0.entPhysicalName', 'Child module')
+            ->assertJsonPath('inventory.0.entPhysicalContainedIn', '1');
+
+        $fallbackDevice = Device::factory()->create([
+            'sysName' => 'fallback-device',
+            'version' => '1.0',
+            'serial' => 'FB-123',
+        ]);
+
+        $this->json('GET', "/api/v0/inventory/{$fallbackDevice->device_id}", [], $headers)
+            ->assertStatus(200)
+            ->assertJsonCount(1, 'inventory')
+            ->assertJsonPath('inventory.0.entPhysicalName', $fallbackDevice->sysName)
+            ->assertJsonPath('inventory.0.entPhysicalSerialNum', $fallbackDevice->serial)
+            ->assertJsonPath('inventory.0.entPhysicalContainedIn', '')
+            ->assertJsonPath('inventory.0.entPhysicalClass', '');
     }
 }

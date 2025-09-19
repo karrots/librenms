@@ -1635,15 +1635,32 @@ function get_inventory(Illuminate\Http\Request $request)
     $device_id = ctype_digit($hostname) ?
     $hostname : getidbyname($hostname);
 
-    return check_device_permission($device_id, function ($device_id) {
+    return check_device_permission($device_id, function ($device_id) use ($request) {
         $params = [];
-        $sql = 'SELECT * FROM `entPhysical` WHERE device_id = ?';
+        $conditions = ['1'];
+
+        if ($request->get('entPhysicalClass')) {
+            $conditions[] = 'entPhysicalClass = ?';
+            $params[] = $request->get('entPhysicalClass');
+        }
+
+        $entPhysicalContainedIn = $request->has('entPhysicalContainedIn')
+            ? $request->get('entPhysicalContainedIn')
+            : '0';
+        $conditions[] = 'entPhysicalContainedIn = ?';
+        $params[] = $entPhysicalContainedIn;
+
+        if (! is_numeric($device_id)) {
+            return api_error(400, 'Invalid device provided');
+        }
+
+        $conditions[] = '`device_id` = ?';
         $params[] = $device_id;
+
+        $sql = 'SELECT * FROM `entPhysical` WHERE ' . implode(' AND ', $conditions);
         $inventory = dbFetchRows($sql, $params);
 
-        // Check if the query returned any rows.
         if (empty($inventory)) {
-            // If no physical inventory is found, use the devices table as a fallback.
             $sql = '
                 SELECT
                     `devices`.`sysDescr` AS `entPhysicalDescr`,
