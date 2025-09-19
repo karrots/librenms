@@ -44,6 +44,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Router;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use LibreNMS\Alerting\QueryBuilderParser;
@@ -1653,28 +1654,118 @@ function get_inventory(Illuminate\Http\Request $request)
 
         if (empty($inventory)) {
             $device = Device::query()
-                ->select(['sysDescr', 'sysName', 'version', 'serial'])
+                ->select(['device_id', 'sysDescr', 'sysName', 'version', 'serial'])
                 ->find($device_id);
 
             if ($device) {
-                $inventory = [[
-                    'entPhysicalDescr' => $device->sysDescr ?? '',
-                    'entPhysicalName' => $device->sysName ?? '',
-                    'entPhysicalFirmwareRev' => $device->version ?? '',
-                    'entPhysicalSerialNum' => $device->serial ?? '',
-                    'entPhysicalClass' => '',
-                    'entPhysicalContainedIn' => '',
-                    'entPhysicalIsFRU' => '',
-                    'entPhysicalVendorType' => '',
-                    'entPhysicalModelName' => '',
-                    'entPhysicalHardwareRev' => '',
-                    'entPhysicalSoftwareRev' => '',
-                    'entPhysicalAssetID' => '',
-                    'entPhysicalAlias' => '',
-                    'entPhysicalMfgName' => '',
-                    'entPhysicalUris' => '',
-                    'entPhysicalParentRelPos' => '',
-                ]];
+                static $entPhysicalColumns;
+
+                if (! isset($entPhysicalColumns)) {
+                    try {
+                        $entPhysicalColumns = Schema::getColumnListing('entPhysical');
+                    } catch (\Throwable $e) {
+                        $entPhysicalColumns = [
+                            'entPhysical_id',
+                            'device_id',
+                            'entPhysicalIndex',
+                            'entPhysicalDescr',
+                            'entPhysicalClass',
+                            'entPhysicalName',
+                            'entPhysicalHardwareRev',
+                            'entPhysicalFirmwareRev',
+                            'entPhysicalSoftwareRev',
+                            'entPhysicalAlias',
+                            'entPhysicalAssetID',
+                            'entPhysicalIsFRU',
+                            'entPhysicalModelName',
+                            'entPhysicalVendorType',
+                            'entPhysicalSerialNum',
+                            'entPhysicalContainedIn',
+                            'entPhysicalParentRelPos',
+                            'entPhysicalMfgName',
+                            'ifIndex',
+                        ];
+                    }
+                }
+
+                $placeholder = array_fill_keys($entPhysicalColumns, null);
+
+                $placeholder['entPhysical_id'] = 0;
+                $placeholder['device_id'] = $device->device_id;
+
+                if (array_key_exists('entPhysicalIndex', $placeholder)) {
+                    $placeholder['entPhysicalIndex'] = '0';
+                }
+
+                if (array_key_exists('entPhysicalDescr', $placeholder)) {
+                    $placeholder['entPhysicalDescr'] = $device->sysDescr ?? '';
+                }
+
+                if (array_key_exists('entPhysicalClass', $placeholder)) {
+                    $placeholder['entPhysicalClass'] = '';
+                }
+
+                if (array_key_exists('entPhysicalName', $placeholder)) {
+                    $placeholder['entPhysicalName'] = $device->sysName ?? '';
+                }
+
+                if (array_key_exists('entPhysicalHardwareRev', $placeholder)) {
+                    $placeholder['entPhysicalHardwareRev'] = '';
+                }
+
+                if (array_key_exists('entPhysicalFirmwareRev', $placeholder)) {
+                    $placeholder['entPhysicalFirmwareRev'] = $device->version ?? '';
+                }
+
+                if (array_key_exists('entPhysicalSoftwareRev', $placeholder)) {
+                    $placeholder['entPhysicalSoftwareRev'] = '';
+                }
+
+                if (array_key_exists('entPhysicalAlias', $placeholder)) {
+                    $placeholder['entPhysicalAlias'] = '';
+                }
+
+                if (array_key_exists('entPhysicalAssetID', $placeholder)) {
+                    $placeholder['entPhysicalAssetID'] = '';
+                }
+
+                if (array_key_exists('entPhysicalIsFRU', $placeholder)) {
+                    $placeholder['entPhysicalIsFRU'] = 'false';
+                }
+
+                if (array_key_exists('entPhysicalModelName', $placeholder)) {
+                    $placeholder['entPhysicalModelName'] = '';
+                }
+
+                if (array_key_exists('entPhysicalVendorType', $placeholder)) {
+                    $placeholder['entPhysicalVendorType'] = '';
+                }
+
+                if (array_key_exists('entPhysicalSerialNum', $placeholder)) {
+                    $placeholder['entPhysicalSerialNum'] = $device->serial ?? '';
+                }
+
+                if (array_key_exists('entPhysicalContainedIn', $placeholder)) {
+                    $placeholder['entPhysicalContainedIn'] = '0';
+                }
+
+                if (array_key_exists('entPhysicalParentRelPos', $placeholder)) {
+                    $placeholder['entPhysicalParentRelPos'] = '-1';
+                }
+
+                if (array_key_exists('entPhysicalMfgName', $placeholder)) {
+                    $placeholder['entPhysicalMfgName'] = '';
+                }
+
+                if (array_key_exists('entPhysicalUris', $placeholder)) {
+                    $placeholder['entPhysicalUris'] = '';
+                }
+
+                if (array_key_exists('ifIndex', $placeholder)) {
+                    $placeholder['ifIndex'] = null;
+                }
+
+                $inventory = [$placeholder];
             }
         }
 
