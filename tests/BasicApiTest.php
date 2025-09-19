@@ -85,7 +85,7 @@ final class BasicApiTest extends DBTestCase
 
         $headers = ['X-Auth-Token' => $token->token_hash];
 
-        $this->json('GET', "/api/v0/inventory/{$device->device_id}", [], $headers)
+        $deviceResponse = $this->json('GET', "/api/v0/inventory/{$device->device_id}", [], $headers)
             ->assertStatus(200)
             ->assertJsonCount(1, 'inventory')
             ->assertJsonPath('inventory.0.entPhysicalName', 'Root chassis')
@@ -103,12 +103,22 @@ final class BasicApiTest extends DBTestCase
             'serial' => 'FB-123',
         ]);
 
-        $this->json('GET', "/api/v0/inventory/{$fallbackDevice->device_id}", [], $headers)
+        $fallbackResponse = $this->json('GET', "/api/v0/inventory/{$fallbackDevice->device_id}", [], $headers)
             ->assertStatus(200)
             ->assertJsonCount(1, 'inventory')
             ->assertJsonPath('inventory.0.entPhysicalName', $fallbackDevice->sysName)
             ->assertJsonPath('inventory.0.entPhysicalSerialNum', $fallbackDevice->serial)
-            ->assertJsonPath('inventory.0.entPhysicalContainedIn', '')
-            ->assertJsonPath('inventory.0.entPhysicalClass', '');
+            ->assertJsonPath('inventory.0.entPhysicalContainedIn', '0')
+            ->assertJsonPath('inventory.0.entPhysicalClass', '')
+            ->assertJsonPath('inventory.0.entPhysicalParentRelPos', '-1')
+            ->assertJsonPath('inventory.0.entPhysicalIsFRU', 'false')
+            ->assertJsonPath('inventory.0.ifIndex', null)
+            ->assertJsonPath('inventory.0.device_id', $fallbackDevice->device_id);
+
+        $this->assertEqualsCanonicalizing(
+            array_keys($deviceResponse->json('inventory.0')),
+            array_keys($fallbackResponse->json('inventory.0')),
+            'Fallback inventory response should match entPhysical column keys'
+        );
     }
 }
